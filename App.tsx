@@ -9,7 +9,6 @@ import { streamChatResponse } from './services/gemini';
 import { v4 as uuidv4 } from 'uuid';
 
 const App: React.FC = () => {
-  // --- State ---
   const [messages, setMessages] = useState<Message[]>([]);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
@@ -53,35 +52,20 @@ const App: React.FC = () => {
     }
   }, [messages, currentSessionId]);
 
-
-  // --- Event Handlers ---
-
+  // --- Scroll Logic ---
   const handleScroll = () => {
     if (scrollContainerRef.current) {
       const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current;
       const distanceToBottom = scrollHeight - scrollTop - clientHeight;
-      const isBottom = distanceToBottom < 50;
-      isAtBottomRef.current = isBottom;
+      isAtBottomRef.current = distanceToBottom < 60;
     }
   };
 
   useEffect(() => {
-    const container = scrollContainerRef.current;
-    if (!container) return;
-    const resizeObserver = new ResizeObserver(() => {
-        if (isAtBottomRef.current) {
-            container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
-        }
-    });
-    resizeObserver.observe(container);
-    return () => resizeObserver.disconnect();
-  }, []);
-
-  useEffect(() => {
-      if (isAtBottomRef.current && scrollContainerRef.current) {
-           scrollContainerRef.current.scrollTo({ top: scrollContainerRef.current.scrollHeight, behavior: 'smooth' });
-      }
-  }, [messages.length, messages[messages.length-1]?.text]);
+    if (isAtBottomRef.current && scrollContainerRef.current) {
+        scrollContainerRef.current.scrollTo({ top: scrollContainerRef.current.scrollHeight, behavior: 'auto' });
+    }
+  }, [messages]);
 
   const createNewSession = () => {
       const newId = uuidv4();
@@ -139,16 +123,9 @@ const App: React.FC = () => {
 
     setMessages((prev) => [...prev, userMsg]);
     setIsLoading(true);
-    
     isAtBottomRef.current = true;
-    setTimeout(() => {
-        if (scrollContainerRef.current) {
-             scrollContainerRef.current.scrollTo({ top: scrollContainerRef.current.scrollHeight, behavior: 'smooth' });
-        }
-    }, 10);
 
     const botMsgId = uuidv4();
-    
     try {
       const botMsg: Message = {
         id: botMsgId,
@@ -164,7 +141,7 @@ const App: React.FC = () => {
       await streamChatResponse(
         [...messages, userMsg],
         text,
-        modelProvider === 'gemini' ? useSearch : false, // Only Gemini supports the search tool config currently
+        modelProvider === 'gemini' ? useSearch : false,
         useDeepThink,
         (chunk, metadata) => {
           setMessages((prev) =>
@@ -204,9 +181,7 @@ const App: React.FC = () => {
   const isWelcomeScreen = messages.length === 0;
 
   return (
-    <div className="flex flex-col h-screen bg-background text-textMain font-sans overflow-hidden selection:bg-primary/30">
-      
-      {/* Sidebar */}
+    <div className="fixed inset-0 flex flex-col bg-background text-textMain font-sans overflow-hidden h-[100dvh]">
       <Sidebar 
         isOpen={isSidebarOpen} 
         onClose={() => setIsSidebarOpen(false)}
@@ -217,79 +192,66 @@ const App: React.FC = () => {
         onDeleteAll={handleDeleteAll}
       />
 
-      {/* Web Preview Sheet */}
       <WebPreviewSheet 
         source={selectedWebSource} 
         onClose={() => setSelectedWebSource(null)} 
       />
 
-      {/* Header */}
-      <header className="relative flex items-center justify-between px-5 py-4 z-30 flex-shrink-0 bg-background/80 backdrop-blur-md sticky top-0 border-b border-white/5">
+      {/* Rigid Header */}
+      <header className="flex-shrink-0 flex items-center justify-between px-5 py-3 h-14 bg-background/80 backdrop-blur-xl border-b border-white/5 z-30">
         <button 
             onClick={() => setIsSidebarOpen(true)}
-            className="p-2 -ml-2 text-textMuted hover:text-white transition-all duration-200 rounded-lg hover:bg-white/5 active:scale-90 active:bg-white/10 group"
+            className="p-2 -ml-2 text-textMuted hover:text-white rounded-lg active:scale-90 transition-all"
         >
-          <MenuIcon className="w-6 h-6 group-hover:text-primary transition-colors" />
+          <MenuIcon className="w-6 h-6" />
         </button>
         
-        {/* Model Switcher */}
-        <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2">
-            <div className="flex items-center bg-white/5 backdrop-blur-xl rounded-full p-1 border border-white/5 shadow-inner">
-                <button
-                    onClick={() => setModelProvider('gemini')}
-                    className={`px-4 py-1.5 rounded-full text-xs font-medium transition-all duration-300 ${
-                        modelProvider === 'gemini'
-                        ? 'bg-surfaceLight text-white shadow-lg'
-                        : 'text-textMuted hover:text-white'
-                    }`}
-                >
-                    Gemini
-                </button>
-                <button
-                    onClick={() => setModelProvider('gpt')}
-                    className={`px-4 py-1.5 rounded-full text-xs font-medium transition-all duration-300 ${
-                        modelProvider === 'gpt'
-                        ? 'bg-surfaceLight text-white shadow-lg'
-                        : 'text-textMuted hover:text-white'
-                    }`}
-                >
-                    GPT-4o
-                </button>
-            </div>
+        <div className="flex items-center bg-white/5 rounded-full p-1 border border-white/5">
+            <button
+                onClick={() => setModelProvider('gemini')}
+                className={`px-4 py-1 rounded-full text-[11px] font-semibold transition-all ${
+                    modelProvider === 'gemini' ? 'bg-surfaceLight text-white' : 'text-textMuted'
+                }`}
+            >
+                Gemini
+            </button>
+            <button
+                onClick={() => setModelProvider('gpt')}
+                className={`px-4 py-1 rounded-full text-[11px] font-semibold transition-all ${
+                    modelProvider === 'gpt' ? 'bg-surfaceLight text-white' : 'text-textMuted'
+                }`}
+            >
+                GPT-4o
+            </button>
         </div>
 
         <button 
             onClick={handleNewChat}
-            className="p-2 -mr-2 text-textMuted hover:text-white transition-all duration-200 rounded-lg hover:bg-white/5 active:scale-90 active:bg-white/10 group"
+            className="p-2 -mr-2 text-textMuted hover:text-white rounded-lg active:scale-90 transition-all"
         >
-          <PlusIcon className="w-6 h-6 group-hover:text-primary transition-colors" />
+          <PlusIcon className="w-6 h-6" />
         </button>
       </header>
 
-      {/* Main Content Area */}
-      <main className={`flex-1 flex flex-col w-full max-w-3xl mx-auto overflow-hidden relative transition-transform duration-300 ${isSidebarOpen && window.innerWidth >= 768 ? 'translate-x-36 scale-95 opacity-80' : ''}`}>
+      {/* Main Container */}
+      <div className="relative flex-1 flex flex-col overflow-hidden w-full max-w-2xl mx-auto">
         
-        {/* Welcome Screen */}
-        {isWelcomeScreen && (
-          <div className="flex-1 flex flex-col items-center justify-center animate-fade-in px-4">
-            <div className="mb-6 relative group cursor-default">
-               <div className="absolute inset-0 bg-primary/20 blur-3xl rounded-full scale-150 animate-pulse transition-all duration-1000 group-hover:bg-primary/30 group-hover:scale-175"></div>
-               <WhaleLogo className="w-20 h-20 text-primary relative z-10 transition-transform duration-500 group-hover:scale-110" />
+        {/* Scrollable Message Area */}
+        <div 
+          ref={scrollContainerRef}
+          onScroll={handleScroll}
+          className="flex-1 overflow-y-auto px-4 pt-4 scroll-smooth scrollbar-hide"
+        >
+          {isWelcomeScreen ? (
+            <div className="h-full flex flex-col items-center justify-center animate-fade-in">
+              <div className="mb-6 relative">
+                 <div className="absolute inset-0 bg-primary/10 blur-3xl rounded-full scale-150 animate-pulse"></div>
+                 <WhaleLogo className="w-16 h-16 text-primary relative z-10" />
+              </div>
+              <h1 className="text-xl font-medium text-white tracking-tight">How can I help you?</h1>
             </div>
-            <h1 className="text-2xl font-medium text-white tracking-tight text-center">
-              How can I help you?
-            </h1>
-          </div>
-        )}
-
-        {/* Chat History */}
-        {!isWelcomeScreen && (
-          <div 
-            ref={scrollContainerRef}
-            onScroll={handleScroll}
-            className="flex-1 overflow-y-auto px-4 pt-4 scrollbar-thin scrollbar-thumb-surfaceLight scrollbar-track-transparent min-h-0"
-          >
-            <div className="max-w-3xl mx-auto w-full">
+          ) : (
+            <div className="max-w-full">
               {messages.map((msg) => (
                 <ChatMessage 
                     key={msg.id} 
@@ -297,20 +259,16 @@ const App: React.FC = () => {
                     onSourceClick={(source) => setSelectedWebSource(source)}
                 />
               ))}
-              <div className="h-4" />
+              <div className="h-2" />
             </div>
-          </div>
-        )}
-
-        {/* Input Area */}
-        <div className="flex-shrink-0 relative z-20 w-full">
-           <div className="absolute bottom-0 left-0 right-0 top-[-60px] bg-gradient-to-t from-background via-background/90 to-transparent pointer-events-none" />
-           <div className="px-4 pb-4 pt-2">
-              <InputArea onSend={handleSendMessage} disabled={isLoading} />
-           </div>
+          )}
         </div>
-      </main>
 
+        {/* Floating Input Area - Fixed at bottom of main */}
+        <div className="flex-shrink-0 w-full px-4 pb-4 pt-2 bg-gradient-to-t from-background via-background to-transparent">
+          <InputArea onSend={handleSendMessage} disabled={isLoading} />
+        </div>
+      </div>
     </div>
   );
 };
